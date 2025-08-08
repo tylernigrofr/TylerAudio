@@ -1,1 +1,1 @@
-add_subdirectory(ExamplePlugin)
+add_subdirectory(ExamplePlugin)add_subdirectory(TingeTape)

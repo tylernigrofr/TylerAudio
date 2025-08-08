@@ -168,3 +168,93 @@ TEST_CASE("GainProcessor maintains audio fidelity")
 - Verify automation works correctly with different automation curves
 - Test edge cases: very high/low sample rates, extreme parameter values
 - Validate that plugin state saves/loads correctly
+
+## Context7 MCP Integration & Research Requirements
+
+### Mandatory Research Protocol
+**CRITICAL**: Always query the Context7 MCP server for up-to-date, verified JUCE documentation before writing or modifying any code. This prevents hallucinations and ensures current best practices.
+
+**JUCE Library ID**: `juce` (use this for efficient Context7 queries)
+
+### Research Requirements
+- **Never assume** how to implement or debug a JUCE feature without prior research via Context7
+- If Context7 data is insufficient, perform detailed web search with citations
+- Always check for recent JUCE API changes before implementing legacy patterns
+- Verify DSP algorithms against official JUCE documentation and examples
+
+### Example Context7 Usage
+```
+Before implementing audio processing:
+1. Query Context7 for juce::dsp module documentation
+2. Research current best practices for the specific DSP component
+3. Check for performance optimization recommendations
+4. Verify thread safety and realtime requirements
+```
+
+## Automated Build & Deployment
+
+### Plugin Build Automation
+After successful compilation, automatically:
+1. **Build the JUCE plugin** using the appropriate build configuration
+2. **Copy artifacts** to system VST3 folder for immediate testing:
+   - Windows: `%COMMONPROGRAMFILES%\VST3\`
+   - macOS: `~/Library/Audio/Plug-Ins/VST3/`
+   - Linux: `~/.vst3/`
+3. **Verify installation** by checking file presence and basic metadata
+
+## Continuous Validation Standards
+
+### Smoke Stress Test (Run on Every Commit)
+**Purpose**: Prevent wasted development effort by catching basic failures early
+
+1. **Plugin Loading Test**: Verify plugin can instantiate without crashes
+2. **Parameter Validation**: Confirm all parameters are accessible and within bounds
+3. **Basic Audio Processing**: Pump silence through plugin, ensure no exceptions
+4. **Memory Leak Check**: Monitor for memory leaks during instantiation/destruction
+
+### Audio Validation Test
+**Purpose**: Ensure expected audio behavior and prevent feedback/artifacts
+
+1. **Sine Wave Test**: Process a 440Hz sine wave, verify output characteristics
+2. **Noise Test**: Process white noise, check for unexpected artifacts
+3. **Silence Test**: Confirm silence in = silence out (when appropriate)
+4. **Dynamic Range Test**: Verify no unexpected clipping or level changes
+
+### Performance Benchmark Test
+**Purpose**: Catch performance regressions and CPU spikes
+
+1. **CPU Usage Measurement**: Monitor processing time per audio buffer
+2. **Memory Usage Tracking**: Check for excessive memory allocation
+3. **Realtime Safety**: Verify no blocking operations in audio thread
+4. **Regression Detection**: Fail if performance degrades >15% from baseline
+
+### UI Validation (When Applicable)
+**Purpose**: Ensure professional, functional user interface
+
+1. **Element Overlap Detection**: Check for overlapping UI components
+2. **Resizability Test**: Verify proper scaling and layout at different sizes
+3. **Color/Font Consistency**: Validate against design guidelines
+4. **Accessibility Check**: Ensure screen reader compatibility
+
+## Plugin Development Workflow Integration
+
+### Pre-Implementation Checklist
+- [ ] Research completed via Context7 MCP
+- [ ] Technical specification documented
+- [ ] Test cases defined before implementation
+- [ ] Performance benchmarks established
+
+### Post-Implementation Validation
+- [ ] Smoke test passes
+- [ ] Audio validation passes  
+- [ ] Performance benchmark within limits
+- [ ] Plugin builds and installs successfully
+- [ ] Manual testing in target DAW completed
+
+### Commit Gate Requirements
+**No commits allowed unless all tests pass:**
+- Compilation successful on target platforms
+- Smoke test suite passes
+- Audio validation passes
+- Performance within acceptable range
+- No memory leaks detected

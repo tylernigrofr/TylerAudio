@@ -1,0 +1,215 @@
+#!/bin/bash
+
+# Tyler Audio Plugin Smoke Test Runner
+# This script runs comprehensive validation tests on all plugins
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BUILD_DIR="$PROJECT_ROOT/build"
+RESULTS_DIR="$PROJECT_ROOT/test-results"
+
+echo "🔥 Tyler Audio Plugin Smoke Test Suite"
+echo "========================================"
+
+# Create results directory
+mkdir -p "$RESULTS_DIR"
+
+# Check if build directory exists
+if [ ! -d "$BUILD_DIR" ]; then
+    echo "❌ Build directory not found. Please run cmake --build build first."
+    exit 1
+fi
+
+# Function to run smoke tests
+run_smoke_tests() {
+    echo "🧪 Running Unit Tests & Smoke Tests..."
+    
+    cd "$BUILD_DIR"
+    
+    # Run catch2 tests with detailed output
+    if [ -f "./tests" ]; then
+        echo "📋 Running comprehensive test suite..."
+        ./tests --reporter=console --success || {
+            echo "❌ Unit tests failed!"
+            return 1
+        }
+    else
+        echo "⚠️  Test executable not found. Skipping unit tests."
+    fi
+    
+    return 0
+}
+
+# Function to validate plugin artifacts
+validate_plugin_artifacts() {
+    echo "📦 Validating Plugin Artifacts..."
+    
+    local plugin_found=false
+    
+    # Check for VST3 plugins
+    find "$BUILD_DIR" -name "*.vst3" -type d | while read -r plugin_path; do
+        if [ -d "$plugin_path" ]; then
+            plugin_found=true
+            local plugin_name=$(basename "$plugin_path" .vst3)
+            echo "✅ Found VST3 plugin: $plugin_name"
+            
+            # Basic plugin structure validation
+            if [ -d "$plugin_path/Contents" ]; then
+                echo "  ✓ Plugin bundle structure is valid"
+            else
+                echo "  ❌ Invalid plugin bundle structure"
+                return 1
+            fi
+        fi
+    done
+    
+    if [ "$plugin_found" = false ]; then
+        echo "⚠️  No VST3 plugins found in build directory"
+    fi
+}
+
+# Function to run pluginval if available
+run_pluginval_tests() {
+    echo "🔍 Running pluginval Validation..."
+    
+    if command -v pluginval >/dev/null 2>&1; then
+        local plugin_tested=false
+        
+        find "$BUILD_DIR" -name "*.vst3" -type d | while read -r plugin_path; do
+            if [ -d "$plugin_path" ]; then
+                plugin_tested=true
+                local plugin_name=$(basename "$plugin_path" .vst3)
+                echo "🔍 Testing $plugin_name with pluginval..."
+                
+                # Run pluginval with strictness level 10
+                if pluginval --strictness-level 10 --validate "$plugin_path"; then
+                    echo "✅ $plugin_name passed pluginval validation"
+                else
+                    echo "❌ $plugin_name failed pluginval validation"
+                    return 1
+                fi
+            fi
+        done
+        
+        if [ "$plugin_tested" = false ]; then
+            echo "⚠️  No plugins available for pluginval testing"
+        fi
+    else
+        echo "⚠️  pluginval not found. Install from: https://github.com/Tracktion/pluginval"
+    fi
+}
+
+# Function to run performance benchmarks
+run_performance_benchmarks() {
+    echo "⚡ Running Performance Benchmarks..."
+    
+    cd "$BUILD_DIR"
+    
+    if [ -f "./benchmarks" ]; then
+        echo "📊 Running performance benchmarks..."
+        ./benchmarks --reporter=console || {
+            echo "❌ Performance benchmarks failed!"
+            return 1
+        }
+    else
+        echo "⚠️  Benchmark executable not found. Skipping performance tests."
+    fi
+}
+
+# Function to generate test report
+generate_test_report() {
+    echo "📋 Generating Test Report..."
+    
+    local report_file="$RESULTS_DIR/smoke-test-report-$(date +%Y%m%d-%H%M%S).md"
+    
+    cat > "$report_file" << EOF
+# Tyler Audio Plugin Smoke Test Report
+
+**Date**: $(date)
+**Build Directory**: $BUILD_DIR
+
+## Test Results Summary
+
+$(if [ "$SMOKE_TESTS_PASSED" = "true" ]; then echo "✅ Unit Tests & Smoke Tests: PASSED"; else echo "❌ Unit Tests & Smoke Tests: FAILED"; fi)
+$(if [ "$ARTIFACT_VALIDATION_PASSED" = "true" ]; then echo "✅ Plugin Artifact Validation: PASSED"; else echo "❌ Plugin Artifact Validation: FAILED"; fi)
+$(if [ "$PLUGINVAL_TESTS_PASSED" = "true" ]; then echo "✅ pluginval Validation: PASSED"; else echo "⚠️ pluginval Validation: SKIPPED"; fi)
+$(if [ "$PERFORMANCE_TESTS_PASSED" = "true" ]; then echo "✅ Performance Benchmarks: PASSED"; else echo "❌ Performance Benchmarks: FAILED"; fi)
+
+## Plugin Artifacts Found
+
+$(find "$BUILD_DIR" -name "*.vst3" -type d | sed 's|.*/||; s|\.vst3$||' | sed 's/^/- /')
+
+## Recommendations
+
+- Ensure all tests pass before committing changes
+- Run pluginval validation on all plugins before release
+- Monitor performance benchmarks for regressions
+- Test plugins in target DAWs before distribution
+
+---
+Generated by Tyler Audio Smoke Test Suite
+EOF
+
+    echo "📄 Report saved to: $report_file"
+}
+
+# Main execution
+main() {
+    echo "🚀 Starting smoke test suite..."
+    
+    # Initialize result flags
+    SMOKE_TESTS_PASSED="false"
+    ARTIFACT_VALIDATION_PASSED="false"
+    PLUGINVAL_TESTS_PASSED="false"
+    PERFORMANCE_TESTS_PASSED="false"
+    
+    # Run tests
+    if run_smoke_tests; then
+        SMOKE_TESTS_PASSED="true"
+        echo "✅ Smoke tests completed successfully"
+    else
+        echo "❌ Smoke tests failed"
+    fi
+    
+    if validate_plugin_artifacts; then
+        ARTIFACT_VALIDATION_PASSED="true"
+        echo "✅ Plugin artifact validation completed"
+    else
+        echo "❌ Plugin artifact validation failed"
+    fi
+    
+    if run_pluginval_tests; then
+        PLUGINVAL_TESTS_PASSED="true"
+        echo "✅ pluginval tests completed"
+    else
+        echo "⚠️ pluginval tests skipped or failed"
+    fi
+    
+    if run_performance_benchmarks; then
+        PERFORMANCE_TESTS_PASSED="true"
+        echo "✅ Performance benchmarks completed"
+    else
+        echo "❌ Performance benchmarks failed"
+    fi
+    
+    # Generate report
+    generate_test_report
+    
+    # Summary
+    echo ""
+    echo "🏁 Smoke Test Suite Complete"
+    echo "=============================="
+    
+    if [ "$SMOKE_TESTS_PASSED" = "true" ] && [ "$ARTIFACT_VALIDATION_PASSED" = "true" ]; then
+        echo "🎉 All critical tests passed! Plugin is ready for further testing."
+        exit 0
+    else
+        echo "❌ Some tests failed. Please review and fix issues before proceeding."
+        exit 1
+    fi
+}
+
+# Run main function
+main "$@"

@@ -111,5 +111,14 @@ namespace TylerAudio
         constexpr char kBypass[] = "bypass";
         constexpr char kInputGain[] = "inputGain";
         constexpr char kOutputGain[] = "outputGain";
+        
+        // TingeTape specific parameters
+        constexpr char kWow[] = "wow";
+        constexpr char kLowCutFreq[] = "lowCutFreq";
+        constexpr char kLowCutRes[] = "lowCutRes";
+        constexpr char kHighCutFreq[] = "highCutFreq";
+        constexpr char kHighCutRes[] = "highCutRes";
+        constexpr char kDirt[] = "dirt";
+        constexpr char kTone[] = "tone";
     }
 }
