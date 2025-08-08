@@ -23,6 +23,11 @@ target_sources(${PLUGIN_NAME}
         Source/PluginEditor.cpp
 )
 
+target_include_directories(${PLUGIN_NAME}
+    PRIVATE
+        ../../shared
+)
+
 target_compile_definitions(${PLUGIN_NAME}
     PUBLIC
         JUCE_WEB_BROWSER=0
@@ -38,3 +43,8 @@ target_link_libraries(${PLUGIN_NAME}
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+# Add pluginval test if available
+if(BUILD_TESTS AND TARGET pluginval_tests)
+    add_pluginval_test(${PLUGIN_NAME})
+endif()

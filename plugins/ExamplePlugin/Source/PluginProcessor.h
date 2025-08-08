@@ -1,8 +1,10 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "TylerAudioCommon.h"
 
-class ExamplePluginAudioProcessor : public juce::AudioProcessor
+class ExamplePluginAudioProcessor : public juce::AudioProcessor,
+                                    public juce::AudioProcessorValueTreeState::Listener
 {
 public:
     ExamplePluginAudioProcessor();
@@ -15,7 +17,7 @@ public:
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
 #endif
 
-    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) noexcept override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override;
@@ -36,8 +38,26 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    // Modern parameter access
+    [[nodiscard]] juce::AudioProcessorValueTreeState& getParameters() noexcept { return parameters; }
+    [[nodiscard]] const juce::AudioProcessorValueTreeState& getParameters() const noexcept { return parameters; }
+
 private:
-    juce::AudioParameterFloat* gainParameter;
+    // Parameter tree state for thread-safe parameter management
+    juce::AudioProcessorValueTreeState parameters;
+    
+    // Realtime-safe parameter access
+    std::atomic<float>* gainParameter{nullptr};
+    std::atomic<float>* bypassParameter{nullptr};
+    
+    // Parameter smoothing
+    TylerAudio::Utils::SmoothingFilter gainSmoother;
+    
+    // Create parameter layout
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    
+    // AudioProcessorValueTreeState::Listener interface
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ExamplePluginAudioProcessor)
 };

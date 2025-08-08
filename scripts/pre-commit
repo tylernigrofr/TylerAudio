@@ -1,0 +1,66 @@
+#!/bin/bash
+# Pre-commit hook to ensure code quality
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check if we're in a git repository
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    echo "Not in a git repository"
+    exit 0
+fi
+
+# Get list of files to check
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|h)$' || true)
+
+if [ -z "$FILES" ]; then
+    echo "No C++ files to check"
+    exit 0
+fi
+
+echo "Checking files: $FILES"
+
+# Check code formatting
+echo "Checking code formatting..."
+for file in $FILES; do
+    if ! clang-format --dry-run --Werror "$file" >/dev/null 2>&1; then
+        echo "❌ Code formatting issues in $file"
+        echo "Run: clang-format -i $file"
+        exit 1
+    fi
+done
+
+# Run clang-tidy on staged files (if build directory exists)
+if [ -d "build" ]; then
+    echo "Running clang-tidy..."
+    for file in $FILES; do
+        if [[ "$file" == *.cpp ]]; then
+            if ! clang-tidy -p build --warnings-as-errors=* "$file" >/dev/null 2>&1; then
+                echo "❌ clang-tidy issues in $file"
+                echo "Run: clang-tidy -p build $file"
+                exit 1
+            fi
+        fi
+    done
+fi
+
+# Check for common issues
+echo "Checking for common issues..."
+for file in $FILES; do
+    # Check for TODO/FIXME in production code (allow in comments)
+    if grep -n "TODO\|FIXME" "$file" | grep -v "//.*TODO\|//.*FIXME" >/dev/null 2>&1; then
+        echo "❌ Found TODO/FIXME in production code in $file"
+        echo "Please resolve or move to comments"
+        exit 1
+    fi
+    
+    # Check for debugging code
+    if grep -n "std::cout\|printf\|std::cerr" "$file" >/dev/null 2>&1; then
+        echo "❌ Found debugging output in $file"
+        echo "Please remove std::cout, printf, or std::cerr"
+        exit 1
+    fi
+done
+
+echo "✅ All pre-commit checks passed"

@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build, Test, and Analyze
 
 on:
   push:
@@ -6,11 +6,27 @@ on:
   pull_request:
     branches: [ master, main ]
 
+env:
+  CMAKE_VERSION: '3.25'
+  PLUGINVAL_VERSION: 'v1.0.3'
+
 jobs:
-  build:
+  build_and_test:
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
+        build_type: [Release, Debug]
+        include:
+          - os: ubuntu-latest
+            cc: clang-17
+            cxx: clang++-17
+          - os: windows-latest  
+            cc: cl
+            cxx: cl
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
         
     runs-on: ${{ matrix.os }}
     
@@ -21,46 +37,129 @@ jobs:
         submodules: recursive
         
     - name: Setup CMake
-      uses: jwlawson/actions-setup-cmake@v1.14
+      uses: jwlawson/actions-setup-cmake@v2
       with:
-        cmake-version: '3.22'
+        cmake-version: ${{ env.CMAKE_VERSION }}
         
-    - name: Install Linux dependencies
+    - name: Setup Clang (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 17
+        sudo apt-get install -y clang-tidy-17 clang-format-17
+        
+    - name: Install system dependencies (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libasound2-dev libx11-dev libxext-dev libxrandr-dev libxss-dev libxinerama-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev
+        sudo apt-get install -y \
+          libasound2-dev libx11-dev libxext-dev libxrandr-dev \
+          libxss-dev libxinerama-dev libxcursor-dev \
+          libfreetype6-dev libfontconfig1-dev \
+          cppcheck
+        
+    - name: Install pluginval
+      shell: bash
+      run: |
+        case "${{ matrix.os }}" in
+          ubuntu-latest)
+            wget -O pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${{ env.PLUGINVAL_VERSION }}/pluginval_Linux.zip"
+            unzip pluginval.zip
+            chmod +x pluginval
+            sudo mv pluginval /usr/local/bin/
+            ;;
+          macos-latest)
+            wget -O pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${{ env.PLUGINVAL_VERSION }}/pluginval_macOS.zip"
+            unzip pluginval.zip
+            chmod +x pluginval
+            sudo mv pluginval /usr/local/bin/
+            ;;
+          windows-latest)
+            curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${{ env.PLUGINVAL_VERSION }}/pluginval_Windows.zip"
+            unzip pluginval.zip
+            echo "${{ github.workspace }}" >> $GITHUB_PATH
+            ;;
+        esac
         
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      env:
+        CC: ${{ matrix.cc }}
+        CXX: ${{ matrix.cxx }}
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DENABLE_SANITIZERS=${{ matrix.build_type == 'Debug' && 'ON' || 'OFF' }} \
+          -DBUILD_TESTS=ON
       
     - name: Build
-      run: cmake --build build --config Release --parallel 4
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel 4
       
-    - name: Upload artifacts (Windows)
-      if: matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-plugins
-        path: |
-          build/plugins/*/ExamplePlugin_artefacts/Release/VST3/*.vst3
-          build/plugins/*/ExamplePlugin_artefacts/Release/Standalone/*.exe
+    - name: Run unit tests
+      if: matrix.build_type == 'Release'
+      run: |
+        cd build
+        ctest --output-on-failure --parallel 4
+        
+    - name: Run benchmarks
+      if: matrix.build_type == 'Release' && matrix.os == 'ubuntu-latest'
+      run: |
+        cd build
+        ./benchmarks --reporter compact
+        
+    - name: Static analysis with clang-tidy (Ubuntu Release only)
+      if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Release'
+      run: |
+        find plugins/ shared/ -name "*.cpp" -o -name "*.h" | \
+          head -10 | \
+          xargs clang-tidy-17 -p build/ --warnings-as-errors=*
           
-    - name: Upload artifacts (macOS)
-      if: matrix.os == 'macos-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-plugins
-        path: |
-          build/plugins/*/ExamplePlugin_artefacts/Release/VST3/*.vst3
-          build/plugins/*/ExamplePlugin_artefacts/Release/AU/*.component
-          build/plugins/*/ExamplePlugin_artefacts/Release/Standalone/*.app
+    - name: Run cppcheck (Ubuntu Release only)
+      if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Release'
+      run: |
+        cppcheck --enable=all --error-exitcode=1 \
+          --suppress=missingInclude \
+          --suppress=unusedFunction \
+          --suppress=unmatchedSuppression \
+          plugins/ shared/
           
-    - name: Upload artifacts (Linux)
-      if: matrix.os == 'ubuntu-latest'
+    - name: Run pluginval tests
+      if: matrix.build_type == 'Release'
+      shell: bash
+      run: |
+        # Find all VST3 plugins
+        find build -name "*.vst3" | while read plugin; do
+          echo "Testing plugin: $plugin"
+          pluginval --strictness-level 10 --validate "$plugin" || exit 1
+        done
+        
+    - name: Upload artifacts
+      if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
-        name: linux-plugins
+        name: ${{ matrix.os }}-plugins
         path: |
-          build/plugins/*/ExamplePlugin_artefacts/Release/VST3/*.vst3
-          build/plugins/*/ExamplePlugin_artefacts/Release/Standalone/ExamplePlugin
+          build/plugins/**/ExamplePlugin_artefacts/${{ matrix.build_type }}/**
+        retention-days: 30
+        
+  code_quality:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Check code formatting
+      run: |
+        find plugins/ shared/ tests/ -name "*.cpp" -o -name "*.h" | \
+          xargs clang-format-17 --dry-run --Werror
+          
+    - name: Check for TODOs and FIXMEs
+      run: |
+        if grep -r "TODO\|FIXME" plugins/ shared/ tests/; then
+          echo "Found TODO or FIXME comments. Please resolve them."
+          exit 1
+        fi
