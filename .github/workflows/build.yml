@@ -1,0 +1,66 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: '3.22'
+        
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libasound2-dev libx11-dev libxext-dev libxrandr-dev libxss-dev libxinerama-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev
+        
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      
+    - name: Build
+      run: cmake --build build --config Release --parallel 4
+      
+    - name: Upload artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-plugins
+        path: |
+          build/plugins/*/ExamplePlugin_artefacts/Release/VST3/*.vst3
+          build/plugins/*/ExamplePlugin_artefacts/Release/Standalone/*.exe
+          
+    - name: Upload artifacts (macOS)
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-plugins
+        path: |
+          build/plugins/*/ExamplePlugin_artefacts/Release/VST3/*.vst3
+          build/plugins/*/ExamplePlugin_artefacts/Release/AU/*.component
+          build/plugins/*/ExamplePlugin_artefacts/Release/Standalone/*.app
+          
+    - name: Upload artifacts (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-plugins
+        path: |
+          build/plugins/*/ExamplePlugin_artefacts/Release/VST3/*.vst3
+          build/plugins/*/ExamplePlugin_artefacts/Release/Standalone/ExamplePlugin
