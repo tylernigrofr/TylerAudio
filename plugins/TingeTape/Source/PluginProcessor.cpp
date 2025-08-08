@@ -103,15 +103,22 @@ void TingeTapeAudioProcessor::changeProgramName(int index, const juce::String& n
 
 void TingeTapeAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    // Initialize parameter smoothing for all parameters (50ms smoothing time)
-    const double smoothingTime = 0.05;
-    wowSmoother.setSmoothingTime(smoothingTime, sampleRate);
-    lowCutFreqSmoother.setSmoothingTime(smoothingTime, sampleRate);
-    lowCutResSmoother.setSmoothingTime(smoothingTime, sampleRate);
-    highCutFreqSmoother.setSmoothingTime(smoothingTime, sampleRate);
-    highCutResSmoother.setSmoothingTime(smoothingTime, sampleRate);
-    dirtSmoother.setSmoothingTime(smoothingTime, sampleRate);
-    toneSmoother.setSmoothingTime(smoothingTime, sampleRate);
+    // Research-compliant parameter smoothing times
+    // Wow parameters: 50ms (prevents modulation artifacts)
+    const double wowSmoothingTime = 0.05;
+    wowSmoother.setSmoothingTime(wowSmoothingTime, sampleRate);
+    
+    // Filter parameters: 20ms (prevents clicks)
+    const double filterSmoothingTime = 0.02;
+    lowCutFreqSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
+    lowCutResSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
+    highCutFreqSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
+    highCutResSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
+    toneSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);  // Tone is filter-based
+    
+    // Drive parameters: 30ms (prevents level jumps)
+    const double driveSmoothingTime = 0.03;
+    dirtSmoother.setSmoothingTime(driveSmoothingTime, sampleRate);
     
     // Snap all smoothers to current values
     wowSmoother.snapToTarget();
@@ -297,72 +304,69 @@ juce::AudioProcessorValueTreeState::ParameterLayout TingeTapeAudioProcessor::cre
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    // Wow parameter (0-100%)
+    // Wow parameter (0-100%) - Research-optimized default for subtle warmth
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kWow,
         "Wow",
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f, 1.0f),
-        0.0f,
+        25.0f,  // Optimized default: subtle tape character without being obvious
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + "%"; }
     ));
 
-    // Low-Cut Frequency (20 Hz - 2000 Hz)
+    // Low-Cut Frequency (20 Hz - 200 Hz) - Research-specified range
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kLowCutFreq,
         "Low Cut",
-        juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 0.3f),  // Logarithmic curve
-        20.0f,
+        juce::NormalisableRange<float>(20.0f, 200.0f, 1.0f, 0.3f),  // Logarithmic curve
+        40.0f,  // Optimized default: gentle rumble removal without affecting bass
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(static_cast<int>(value)) + " Hz"; }
     ));
 
-    // Low-Cut Resonance (0.1 - 10.0)
+    // Low-Cut Resonance (0.1 - 2.0) - Research-specified range for musical control
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kLowCutRes,
         "Low Cut Q",
-        juce::NormalisableRange<float>(0.1f, 10.0f, 0.01f, 1.0f),
-        0.707f,  // Butterworth response
+        juce::NormalisableRange<float>(0.1f, 2.0f, 0.01f, 1.0f),
+        0.707f,  // Butterworth response - optimal default
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 2); }
     ));
 
-    // High-Cut Frequency (1000 Hz - 20000 Hz)
+    // High-Cut Frequency (5 kHz - 20 kHz) - Research-specified range for tape character
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kHighCutFreq,
         "High Cut",
-        juce::NormalisableRange<float>(1000.0f, 20000.0f, 1.0f, 0.3f),  // Logarithmic curve
-        20000.0f,
+        juce::NormalisableRange<float>(5000.0f, 20000.0f, 10.0f, 0.3f),  // Logarithmic curve
+        15000.0f,  // Optimized default: subtle high-frequency warmth
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { 
-            if (value >= 1000.0f)
-                return juce::String(value / 1000.0f, 1) + " kHz";
-            else
-                return juce::String(static_cast<int>(value)) + " Hz";
+            return juce::String(value / 1000.0f, 1) + " kHz";
         }
     ));
 
-    // High-Cut Resonance (0.1 - 10.0)
+    // High-Cut Resonance (0.1 - 2.0) - Research-specified range for musical control
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kHighCutRes,
         "High Cut Q",
-        juce::NormalisableRange<float>(0.1f, 10.0f, 0.01f, 1.0f),
-        0.707f,  // Butterworth response
+        juce::NormalisableRange<float>(0.1f, 2.0f, 0.01f, 1.0f),
+        0.707f,  // Butterworth response - optimal default
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 2); }
     ));
 
-    // Dirt/Saturation (0-100%)
+    // Dirt/Saturation (0-100%) - Research-compliant 1x-10x gain scaling
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kDirt,
         "Dirt",
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f, 1.0f),
-        0.0f,
+        25.0f,  // Optimized default: subtle warmth and harmonic enhancement
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + "%"; }
@@ -440,9 +444,9 @@ void TingeTapeAudioProcessor::WowEngine::prepare(double sampleRate, int maxBlock
     delayLine.setMaximumDelayInSamples(static_cast<int>(sampleRate * kMaxDelayMs / 1000.0f));
     delayLine.prepare({sampleRate, static_cast<juce::uint32>(maxBlockSize), 1});
     
-    // Prepare LFO
+    // Prepare LFO - Research specification: 0.5Hz sine wave for authentic tape wow
     lfo.prepare({sampleRate, static_cast<juce::uint32>(maxBlockSize), 1});
-    lfo.setFrequency(kWowFrequency);
+    lfo.setFrequency(kWowFrequency);  // 0.5Hz fixed frequency per research
     lfo.initialise([](float x) { return std::sin(x); }, 128);
     
     reset();
@@ -461,13 +465,20 @@ float TingeTapeAudioProcessor::WowEngine::getNextSample(float input) noexcept
     // Generate LFO modulation
     const float lfoValue = lfo.processSample(0.0f);
     
-    // Convert to delay time modulation (in samples)
-    const float maxDelaySamples = sampleRate * kMaxDelayMs / 1000.0f;
-    const float modulationSamples = lfoValue * depth * maxDelaySamples * 0.5f;  // ±depth control
-    const float baseDelay = maxDelaySamples * 0.5f;  // Center delay
+    // Research-compliant delay calculation:
+    // modulatedDelayMs = baseDelayMs + (lfoOutput * depthParam * maxModulationMs)
+    constexpr float baseDelayMs = 5.0f;        // Fixed 5ms base delay per research
+    constexpr float maxModulationMs = 45.0f;   // 0-45ms modulation range per research
     
-    currentDelay = baseDelay + modulationSamples;
-    currentDelay = juce::jlimit(1.0f, maxDelaySamples - 1.0f, currentDelay);
+    // Calculate modulated delay in milliseconds
+    const float modulatedDelayMs = baseDelayMs + (lfoValue * depth * maxModulationMs);
+    
+    // Convert to samples
+    const float modulatedDelaySamples = modulatedDelayMs * sampleRate / 1000.0f;
+    
+    // Ensure delay is within valid range
+    const float maxDelaySamples = sampleRate * kMaxDelayMs / 1000.0f;
+    currentDelay = juce::jlimit(1.0f, maxDelaySamples - 1.0f, modulatedDelaySamples);
     
     // Set delay and get delayed sample
     delayLine.setDelay(currentDelay);
@@ -500,20 +511,32 @@ float TingeTapeAudioProcessor::TapeSaturation::processSample(float input) noexce
     if (drive <= 0.001f)
         return input;  // Bypass when drive is effectively zero
     
-    // Apply input gain based on drive
-    const float driveGain = 1.0f + drive * 4.0f;  // 1x to 5x gain
-    float sample = input * driveGain;
+    // Research-compliant drive scaling: 1x to 10x gain (not 1x to 5x)
+    const float driveGain = 1.0f + (drive * 9.0f);  // drive is 0-1, maps to 1x-10x gain
     
-    // Tape-style saturation using tanh with compression
-    sample = std::tanh(sample * kTapeCompression) / kTapeCompression;
+    // Research-compliant tanh saturation with proper normalization
+    const float drivenInput = input * driveGain;
+    float sample = std::tanh(drivenInput);
     
-    // High-frequency rolloff (simple one-pole filter)
-    const float alpha = kHighFreqRolloff;
+    // Proper tanh normalization for unity gain: output = tanh(input * driveGain) / tanh(driveGain)
+    if (driveGain > 0.001f)
+    {
+        sample /= std::tanh(driveGain);
+    }
+    
+    // Drive-dependent high-frequency rolloff (more rolloff with more drive)
+    const float rolloffAmount = kHighFreqRolloff + (drive * 0.08f);  // Increase rolloff with drive
+    const float alpha = juce::jlimit(0.1f, 0.98f, rolloffAmount);
     previousSample = alpha * previousSample + (1.0f - alpha) * sample;
     sample = previousSample;
     
-    // Output level compensation
-    sample *= (1.0f - drive * 0.3f);  // Reduce level as drive increases
+    // Improved level compensation to maintain consistent output levels
+    const float compensationFactor = 1.0f / (1.0f + drive * 0.5f);  // Gentle compensation
+    sample *= compensationFactor;
+    
+    // Denormal protection
+    if (std::fpclassify(sample) == FP_SUBNORMAL)
+        sample = 0.0f;
     
     return sample;
 }
@@ -572,9 +595,10 @@ void TingeTapeAudioProcessor::ToneControl::reset() noexcept
 
 void TingeTapeAudioProcessor::ToneControl::updateCoefficients()
 {
-    constexpr float lowFreq = 250.0f;    // Low shelf frequency
-    constexpr float highFreq = 5000.0f;  // High shelf frequency
-    constexpr float maxGainDb = 12.0f;   // Maximum boost/cut in dB
+    // Research-compliant shelf frequencies and gain range
+    constexpr float lowFreq = 250.0f;    // Low shelf frequency per research
+    constexpr float highFreq = 5000.0f;  // High shelf frequency per research  
+    constexpr float maxGainDb = 6.0f;    // Research-specified ±6dB range (was ±12dB)
     
     // Calculate gains for tilt filter effect
     const float gainDb = currentTone * maxGainDb;

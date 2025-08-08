@@ -105,10 +105,10 @@ private:
         
     private:
         float drive{0.0f};
-        float previousSample{0.0f};  // For one-pole filter
+        float previousSample{0.0f};  // For drive-dependent HF rolloff filter
         
-        static constexpr float kTapeCompression = 0.7f;
-        static constexpr float kHighFreqRolloff = 0.9f;
+        // Research-compliant constants
+        static constexpr float kHighFreqRolloff = 0.9f;  // Base rolloff, increases with drive
     };
     
     // Tone control (tilt filter)

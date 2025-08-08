@@ -6,6 +6,12 @@ add_executable(TingeTape_tests
     test_tingetape_smoke.cpp
     test_tingetape_unit.cpp
     test_tingetape_performance.cpp
+    test_tingetape_wow_detailed.cpp
+    test_tingetape_saturation_detailed.cpp
+    test_tingetape_tone_detailed.cpp
+    test_tingetape_integration.cpp
+    test_tingetape_quality.cpp
+    test_tingetape_validation.cpp
 )
 
 # Link against required libraries
