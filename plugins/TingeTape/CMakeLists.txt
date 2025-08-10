@@ -2,7 +2,8 @@ set(PLUGIN_NAME TingeTape)
 
 juce_add_plugin(${PLUGIN_NAME}
     VERSION 1.0.0
-    COMPANY_NAME "Tyler Audio"
+    COMPANY_NAME "TylerAudio"
+    BUNDLE_ID "com.tyleraudio.tingetape"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE

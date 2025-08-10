@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(TylerAudioPlugins VERSION 0.1.0 LANGUAGES CXX)
+project(TylerAudioPlugins VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,9 +22,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         -Wundef
         -Werror=return-type
         -fno-common
-        $<$<CONFIG:Debug>:-g3 -O0 -DDEBUG=1>
-        $<$<CONFIG:Release>:-O3 -DNDEBUG=1 -flto>
     )
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(-g3 -O0 -DDEBUG=1)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(-O3 -DNDEBUG=1 -flto)
+    endif()
 elseif(MSVC)
     add_compile_options(
         /W4
@@ -79,21 +82,7 @@ if(BUILD_TESTS)
     )
 endif()
 
-juce_add_modules(
-    juce_audio_basics
-    juce_audio_devices
-    juce_audio_formats
-    juce_audio_plugin_client
-    juce_audio_processors
-    juce_audio_utils
-    juce_core
-    juce_data_structures
-    juce_dsp
-    juce_events
-    juce_graphics
-    juce_gui_basics
-    juce_gui_extra
-)
+# JUCE modules are provided via FetchContent; link juce::* targets directly in plugin targets
 
 add_subdirectory(plugins)
 
