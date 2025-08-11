@@ -6,6 +6,20 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Ensure Objective-C++ files (.mm) also use the same C++ standard
+set(CMAKE_OBJCXX_STANDARD 23)
+set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+set(CMAKE_OBJCXX_EXTENSIONS OFF)
+
+# Xcode-specific: ensure modern C++ and suppress undefined macro warnings in JUCE headers
+if(APPLE)
+    # Match Xcode's Build Settings: C++ Language Dialect / Standard Library
+    set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++20")
+    set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
+    # Disable "Warn About Undefined Macros" which causes noisy JUCE warnings
+    set(CMAKE_XCODE_ATTRIBUTE_GCC_WARN_UNDEFINED_MACRO "NO")
+endif()
+
 # Build configuration
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose build type" FORCE)
@@ -19,7 +33,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         -Wconversion -Wsign-conversion
         -Wdouble-promotion
         -Wformat=2
-        -Wundef
         -Werror=return-type
         -fno-common
     )

@@ -71,20 +71,21 @@ private:
     class WowEngine
     {
     public:
-        void prepare(double sampleRate, int maxBlockSize);
+        void prepare(double sampleRate, int maxBlockSize, int numChannels = 2);
         void setDepth(float depth) noexcept;
-        float getNextSample(float input) noexcept;
+        float getNextSample(float input, int channel) noexcept;
         void reset() noexcept;
         
     private:
         static constexpr float kWowFrequency = 0.5f;  // Hz
         static constexpr int kMaxDelayMs = 50;        // Maximum delay for pitch modulation
         
-        juce::dsp::DelayLine<float> delayLine;
+        std::vector<juce::dsp::DelayLine<float>> delayLines;
         juce::dsp::Oscillator<float> lfo;
         float depth{0.0f};
         float sampleRate{44100.0f};
         float currentDelay{0.0f};
+        int numChannels{2};
     };
     
     // Resonant filter pair

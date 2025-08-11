@@ -9,6 +9,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Manual build**: `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release --parallel 4`
 - **Clean build**: Delete `build/` directory, then rebuild
 
+### macOS Xcode Build Commands (Automated)
+For building Audio Units on macOS without opening Xcode GUI:
+
+```bash
+# One-time setup (generate Xcode project)
+mkdir -p ~/TylerAudio/build-xcode
+cd ~/TylerAudio/build-xcode
+cmake -G "Xcode" .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
+
+# Build specific plugin (e.g., TingeTape AU)
+cmake --build . --config Release --target TingeTape_AU
+
+# Build all plugins
+cmake --build . --config Release
+```
+
+**Prerequisites for macOS AU builds:**
+- Full Xcode installed (not just Command Line Tools)
+- Xcode license accepted: `sudo xcodebuild -license accept`
+- Correct toolchain selected: `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`
+
+**Post-build validation:**
+```bash
+# Validate Audio Unit
+auval -v aufx TING Tylr
+
+# Remove quarantine if needed
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/TingeTape.component
+```
+
 ### Build Artifacts Location
 Plugin artifacts are generated in: `build/plugins/{PluginName}/{PluginName}_artefacts/Release/`
 - `VST3/` - VST3 plugins (.vst3)

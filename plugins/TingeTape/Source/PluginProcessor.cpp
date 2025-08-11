@@ -120,6 +120,15 @@ void TingeTapeAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlo
     const double driveSmoothingTime = 0.03;
     dirtSmoother.setSmoothingTime(driveSmoothingTime, sampleRate);
     
+    // Set smoother targets from current parameter values before snapping
+    wowSmoother.setTargetValue(wowParameter->load());
+    lowCutFreqSmoother.setTargetValue(lowCutFreqParameter->load());
+    lowCutResSmoother.setTargetValue(lowCutResParameter->load());
+    highCutFreqSmoother.setTargetValue(highCutFreqParameter->load());
+    highCutResSmoother.setTargetValue(highCutResParameter->load());
+    dirtSmoother.setTargetValue(dirtParameter->load());
+    toneSmoother.setTargetValue(toneParameter->load());
+    
     // Snap all smoothers to current values
     wowSmoother.snapToTarget();
     lowCutFreqSmoother.snapToTarget();
@@ -136,7 +145,7 @@ void TingeTapeAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlo
     spec.numChannels = static_cast<juce::uint32>(getTotalNumOutputChannels());
     
     // Prepare wow engine
-    wowEngine.prepare(sampleRate, samplesPerBlock);
+    wowEngine.prepare(sampleRate, samplesPerBlock, static_cast<int>(spec.numChannels));
     
     // Prepare filters
     lowCutFilter.prepare(spec);
@@ -152,6 +161,9 @@ void TingeTapeAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlo
     wowEngine.reset();
     tapeSaturation.reset();
     toneControl.reset();
+    
+    // Initialize filter coefficients with current parameter values
+    updateFilters();
 }
 
 void TingeTapeAudioProcessor::releaseResources()
@@ -236,7 +248,7 @@ void TingeTapeAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
             // Step 4: High-Cut Filter will be applied after sample loop
             
             // Step 5: Apply wow modulation (pitch modulation)
-            sample_val = wowEngine.getNextSample(sample_val);
+            sample_val = wowEngine.getNextSample(sample_val, static_cast<int>(channel));
             
             // Denormal protection and sanitization
             sample_val = TylerAudio::Utils::sanitizeFloat(sample_val);
@@ -259,14 +271,18 @@ void TingeTapeAudioProcessor::updateFilters()
     
     const double sampleRate = getSampleRate();
     
+    // Clamp frequencies to safe minimums to prevent 0 Hz coefficients
+    const float clampedLowCutFreq = juce::jmax(20.0f, lowCutFreq);
+    const float clampedHighCutFreq = juce::jmax(20.0f, highCutFreq);
+    
     // Update Low-Cut Filter (High-Pass)
     auto lowCutCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighPass(
-        sampleRate, lowCutFreq, lowCutRes);
+        sampleRate, clampedLowCutFreq, lowCutRes);
     *lowCutFilter.state = *lowCutCoeffs;
     
     // Update High-Cut Filter (Low-Pass)  
     auto highCutCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass(
-        sampleRate, highCutFreq, highCutRes);
+        sampleRate, clampedHighCutFreq, highCutRes);
     *highCutFilter.state = *highCutCoeffs;
 }
 
@@ -436,13 +452,18 @@ void TingeTapeAudioProcessor::parameterChanged(const juce::String& parameterID, 
 // =============================================================================
 
 // Wow Engine Implementation
-void TingeTapeAudioProcessor::WowEngine::prepare(double sampleRate, int maxBlockSize)
+void TingeTapeAudioProcessor::WowEngine::prepare(double sampleRate, int maxBlockSize, int numChannels)
 {
     this->sampleRate = static_cast<float>(sampleRate);
+    this->numChannels = numChannels;
     
-    // Prepare delay line with maximum delay time
-    delayLine.setMaximumDelayInSamples(static_cast<int>(sampleRate * kMaxDelayMs / 1000.0f));
-    delayLine.prepare({sampleRate, static_cast<juce::uint32>(maxBlockSize), 1});
+    // Prepare delay lines for each channel
+    delayLines.resize(numChannels);
+    for (auto& delayLine : delayLines)
+    {
+        delayLine.setMaximumDelayInSamples(static_cast<int>(sampleRate * kMaxDelayMs / 1000.0f));
+        delayLine.prepare({sampleRate, static_cast<juce::uint32>(maxBlockSize), 1});
+    }
     
     // Prepare LFO - Research specification: 0.5Hz sine wave for authentic tape wow
     lfo.prepare({sampleRate, static_cast<juce::uint32>(maxBlockSize), 1});
@@ -457,12 +478,12 @@ void TingeTapeAudioProcessor::WowEngine::setDepth(float depth) noexcept
     this->depth = juce::jlimit(0.0f, 100.0f, depth) / 100.0f;
 }
 
-float TingeTapeAudioProcessor::WowEngine::getNextSample(float input) noexcept
+float TingeTapeAudioProcessor::WowEngine::getNextSample(float input, int channel) noexcept
 {
-    if (depth <= 0.001f)
-        return input;  // Bypass when depth is effectively zero
+    if (depth <= 0.001f || channel >= numChannels)
+        return input;  // Bypass when depth is effectively zero or invalid channel
     
-    // Generate LFO modulation
+    // Generate LFO modulation (shared across channels for correlated wow)
     const float lfoValue = lfo.processSample(0.0f);
     
     // Research-compliant delay calculation:
@@ -480,16 +501,17 @@ float TingeTapeAudioProcessor::WowEngine::getNextSample(float input) noexcept
     const float maxDelaySamples = sampleRate * kMaxDelayMs / 1000.0f;
     currentDelay = juce::jlimit(1.0f, maxDelaySamples - 1.0f, modulatedDelaySamples);
     
-    // Set delay and get delayed sample
-    delayLine.setDelay(currentDelay);
-    delayLine.pushSample(0, input);
+    // Set delay and get delayed sample for this channel
+    delayLines[channel].setDelay(currentDelay);
+    delayLines[channel].pushSample(0, input);
     
-    return delayLine.popSample(0);
+    return delayLines[channel].popSample(0);
 }
 
 void TingeTapeAudioProcessor::WowEngine::reset() noexcept
 {
-    delayLine.reset();
+    for (auto& delayLine : delayLines)
+        delayLine.reset();
     lfo.reset();
     currentDelay = 0.0f;
 }

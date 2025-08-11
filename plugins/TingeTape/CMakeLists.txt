@@ -46,6 +46,29 @@ target_link_libraries(${PLUGIN_NAME}
         juce::juce_recommended_warning_flags
 )
 
+# Workaround for AppleClang builds where <type_traits> may not be pulled in
+# by Objective-C++ module translation units, leading to std::alignment_of_v
+# not being found in JUCE's AudioSampleBuffer. Forcibly include <type_traits>.
+if(APPLE)
+    target_compile_options(${PLUGIN_NAME}
+        PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-include type_traits>
+            $<$<COMPILE_LANGUAGE:OBJCXX>:-include type_traits>
+            $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++20>
+            $<$<COMPILE_LANGUAGE:OBJCXX>:-std=gnu++20>
+    )
+    # Apply the same fixes to the AU wrapper target
+    if(TARGET ${PLUGIN_NAME}_AU)
+        target_compile_options(${PLUGIN_NAME}_AU
+            PRIVATE
+                $<$<COMPILE_LANGUAGE:CXX>:-include type_traits>
+                $<$<COMPILE_LANGUAGE:OBJCXX>:-include type_traits>
+                $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++20>
+                $<$<COMPILE_LANGUAGE:OBJCXX>:-std=gnu++20>
+        )
+    endif()
+endif()
+
 # Add pluginval test if available
 if(BUILD_TESTS AND TARGET pluginval_tests)
     add_pluginval_test(${PLUGIN_NAME})
