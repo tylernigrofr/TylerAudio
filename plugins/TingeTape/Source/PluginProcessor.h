@@ -106,26 +106,23 @@ private:
         
     private:
         float drive{0.0f};
-        float previousSample{0.0f};  // For drive-dependent HF rolloff filter
-        
-        // Research-compliant constants
-        static constexpr float kHighFreqRolloff = 0.9f;  // Base rolloff, increases with drive
     };
     
     // Tone control (tilt filter)
     class ToneControl
     {
     public:
-        void prepare(double sampleRate);
+        void prepare(double sampleRate, int numChannels = 2);
         void setTone(float tone) noexcept;  // -1.0 to +1.0
-        float processSample(float input) noexcept;
+        float processSample(float input, int channel) noexcept;
         void reset() noexcept;
         
     private:
-        juce::dsp::IIR::Filter<float> lowShelf;
-        juce::dsp::IIR::Filter<float> highShelf;
+        std::vector<juce::dsp::IIR::Filter<float>> lowShelfFilters;
+        std::vector<juce::dsp::IIR::Filter<float>> highShelfFilters;
         float currentTone{0.0f};
         double sampleRate{44100.0};
+        int numChannels{2};
         
         void updateCoefficients();
     };

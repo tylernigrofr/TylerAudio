@@ -103,21 +103,21 @@ void TingeTapeAudioProcessor::changeProgramName(int index, const juce::String& n
 
 void TingeTapeAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    // Research-compliant parameter smoothing times
-    // Wow parameters: 50ms (prevents modulation artifacts)
-    const double wowSmoothingTime = 0.05;
+    // Optimized parameter smoothing times
+    // Wow parameters: 25ms (prevents clicks from fast pitch changes)
+    const double wowSmoothingTime = 0.025;
     wowSmoother.setSmoothingTime(wowSmoothingTime, sampleRate);
     
-    // Filter parameters: 20ms (prevents clicks)
-    const double filterSmoothingTime = 0.02;
+    // Filter parameters: 0.5ms (extremely fast for immediate response)
+    const double filterSmoothingTime = 0.0005;
     lowCutFreqSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
     lowCutResSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
     highCutFreqSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
     highCutResSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);
     toneSmoother.setSmoothingTime(filterSmoothingTime, sampleRate);  // Tone is filter-based
     
-    // Drive parameters: 30ms (prevents level jumps)
-    const double driveSmoothingTime = 0.03;
+    // Drive parameters: 15ms (prevents saturation clicks)
+    const double driveSmoothingTime = 0.015;
     dirtSmoother.setSmoothingTime(driveSmoothingTime, sampleRate);
     
     // Set smoother targets from current parameter values before snapping
@@ -153,7 +153,7 @@ void TingeTapeAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlo
     
     // Prepare saturation and tone control
     tapeSaturation.prepare(sampleRate);
-    toneControl.prepare(sampleRate);
+    toneControl.prepare(sampleRate, static_cast<int>(spec.numChannels));
     
     // Reset all DSP components
     lowCutFilter.reset();
@@ -243,7 +243,7 @@ void TingeTapeAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
             sample_val = tapeSaturation.processSample(sample_val);
             
             // Step 3: Apply tone control
-            sample_val = toneControl.processSample(sample_val);
+            sample_val = toneControl.processSample(sample_val, static_cast<int>(channel));
             
             // Step 4: High-Cut Filter will be applied after sample loop
             
@@ -320,23 +320,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout TingeTapeAudioProcessor::cre
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    // Wow parameter (0-100%) - Research-optimized default for subtle warmth
+    // Wow parameter (0-10%) - Reduced range for usability (was too extreme at 100%)
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kWow,
         "Wow",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f, 1.0f),
-        25.0f,  // Optimized default: subtle tape character without being obvious
+        juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f, 1.0f),
+        0.0f,  // Default: inactive
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + "%"; }
     ));
 
-    // Low-Cut Frequency (20 Hz - 200 Hz) - Research-specified range
+    // Low-Cut Frequency (20 Hz - 2000 Hz) - Extended range for flexibility
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kLowCutFreq,
         "Low Cut",
-        juce::NormalisableRange<float>(20.0f, 200.0f, 1.0f, 0.3f),  // Logarithmic curve
-        40.0f,  // Optimized default: gentle rumble removal without affecting bass
+        juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 0.3f),  // Logarithmic curve
+        20.0f,  // Default: minimum (inactive)
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(static_cast<int>(value)) + " Hz"; }
@@ -353,16 +353,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout TingeTapeAudioProcessor::cre
         [](float value, int) { return juce::String(value, 2); }
     ));
 
-    // High-Cut Frequency (5 kHz - 20 kHz) - Research-specified range for tape character
+    // High-Cut Frequency (200 Hz - 20 kHz) - Extended range for flexibility
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         TylerAudio::ParameterIDs::kHighCutFreq,
         "High Cut",
-        juce::NormalisableRange<float>(5000.0f, 20000.0f, 10.0f, 0.3f),  // Logarithmic curve
-        15000.0f,  // Optimized default: subtle high-frequency warmth
+        juce::NormalisableRange<float>(200.0f, 20000.0f, 10.0f, 0.3f),  // Logarithmic curve
+        20000.0f,  // Default: maximum (inactive)
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { 
-            return juce::String(value / 1000.0f, 1) + " kHz";
+            if (value >= 1000.0f)
+                return juce::String(value / 1000.0f, 1) + " kHz";
+            else
+                return juce::String(static_cast<int>(value)) + " Hz";
         }
     ));
 
@@ -382,7 +385,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout TingeTapeAudioProcessor::cre
         TylerAudio::ParameterIDs::kDirt,
         "Dirt",
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f, 1.0f),
-        25.0f,  // Optimized default: subtle warmth and harmonic enhancement
+        0.0f,  // Default: inactive
         juce::String(),
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + "%"; }
@@ -475,7 +478,8 @@ void TingeTapeAudioProcessor::WowEngine::prepare(double sampleRate, int maxBlock
 
 void TingeTapeAudioProcessor::WowEngine::setDepth(float depth) noexcept
 {
-    this->depth = juce::jlimit(0.0f, 100.0f, depth) / 100.0f;
+    // Scale 0-10% input to 0-0.1 depth for processing (much more subtle)
+    this->depth = juce::jlimit(0.0f, 10.0f, depth) / 100.0f;
 }
 
 float TingeTapeAudioProcessor::WowEngine::getNextSample(float input, int channel) noexcept
@@ -546,14 +550,11 @@ float TingeTapeAudioProcessor::TapeSaturation::processSample(float input) noexce
         sample /= std::tanh(driveGain);
     }
     
-    // Drive-dependent high-frequency rolloff (more rolloff with more drive)
-    const float rolloffAmount = kHighFreqRolloff + (drive * 0.08f);  // Increase rolloff with drive
-    const float alpha = juce::jlimit(0.1f, 0.98f, rolloffAmount);
-    previousSample = alpha * previousSample + (1.0f - alpha) * sample;
-    sample = previousSample;
+    // NO HIGH-FREQUENCY ROLLOFF - Let Tone and High Cut handle darkening
+    // Pure saturation only, no filtering
     
-    // Improved level compensation to maintain consistent output levels
-    const float compensationFactor = 1.0f / (1.0f + drive * 0.5f);  // Gentle compensation
+    // Light level compensation to maintain consistent output levels
+    const float compensationFactor = 1.0f / (1.0f + drive * 0.2f);  // Very gentle compensation
     sample *= compensationFactor;
     
     // Denormal protection
@@ -565,21 +566,28 @@ float TingeTapeAudioProcessor::TapeSaturation::processSample(float input) noexce
 
 void TingeTapeAudioProcessor::TapeSaturation::reset() noexcept
 {
-    previousSample = 0.0f;
+    // No state to reset - pure saturation
 }
 
 // Tone Control Implementation
-void TingeTapeAudioProcessor::ToneControl::prepare(double sampleRate)
+void TingeTapeAudioProcessor::ToneControl::prepare(double sampleRate, int numChannels)
 {
     this->sampleRate = sampleRate;
+    this->numChannels = numChannels;
     
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = 512;  // Not critical for single-sample processing
     spec.numChannels = 1;
     
-    lowShelf.prepare(spec);
-    highShelf.prepare(spec);
+    lowShelfFilters.resize(numChannels);
+    highShelfFilters.resize(numChannels);
+    
+    for (int i = 0; i < numChannels; ++i)
+    {
+        lowShelfFilters[i].prepare(spec);
+        highShelfFilters[i].prepare(spec);
+    }
     
     reset();
     updateCoefficients();
@@ -596,23 +604,26 @@ void TingeTapeAudioProcessor::ToneControl::setTone(float tone) noexcept
     }
 }
 
-float TingeTapeAudioProcessor::ToneControl::processSample(float input) noexcept
+float TingeTapeAudioProcessor::ToneControl::processSample(float input, int channel) noexcept
 {
-    if (std::abs(currentTone) <= 0.001f)
-        return input;  // Bypass when tone is effectively zero
+    if (std::abs(currentTone) <= 0.001f || channel < 0 || channel >= numChannels)
+        return input;  // Bypass when tone is effectively zero or invalid channel
     
-    // Process through both shelf filters
+    // Process through both shelf filters for this channel
     float sample = input;
-    sample = lowShelf.processSample(sample);
-    sample = highShelf.processSample(sample);
+    sample = lowShelfFilters[channel].processSample(sample);
+    sample = highShelfFilters[channel].processSample(sample);
     
     return sample;
 }
 
 void TingeTapeAudioProcessor::ToneControl::reset() noexcept
 {
-    lowShelf.reset();
-    highShelf.reset();
+    for (int i = 0; i < numChannels; ++i)
+    {
+        lowShelfFilters[i].reset();
+        highShelfFilters[i].reset();
+    }
 }
 
 void TingeTapeAudioProcessor::ToneControl::updateCoefficients()
@@ -629,13 +640,18 @@ void TingeTapeAudioProcessor::ToneControl::updateCoefficients()
     const float lowGainDb = -gainDb;
     auto lowCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowShelf(
         sampleRate, lowFreq, 0.707f, juce::Decibels::decibelsToGain(lowGainDb));
-    *lowShelf.coefficients = *lowCoeffs;
     
     // High shelf: cut when tone is negative (darker), boost when positive (brighter)  
     const float highGainDb = gainDb;
     auto highCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighShelf(
         sampleRate, highFreq, 0.707f, juce::Decibels::decibelsToGain(highGainDb));
-    *highShelf.coefficients = *highCoeffs;
+    
+    // Update all channel filters
+    for (int i = 0; i < numChannels; ++i)
+    {
+        *lowShelfFilters[i].coefficients = *lowCoeffs;
+        *highShelfFilters[i].coefficients = *highCoeffs;
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
