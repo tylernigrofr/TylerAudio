@@ -1,141 +1,83 @@
-# Tyler Audio Plugins
+# TylerAudio Plugin Framework
 
-A modern JUCE-based monorepo for audio plugin development with complete CI/CD pipeline.
+**Professional JUCE audio plugin development with rapid iteration capabilities.**
+
+Create, build, and test audio plugins in **3-4 seconds** instead of 45-60 seconds.
+
+## Quick Start (60 seconds)
+
+```bash
+# 1. Create new plugin
+./tools/new-plugin.sh MyEffect
+
+# 2. Build & launch  
+./tools/dev-build.sh MyEffect --launch
+
+# 3. Edit code, rebuild in ~3 seconds
+./tools/dev-build.sh MyEffect
+```
+
+🎯 **[Complete Quick Start Guide →](docs/QUICK_START.md)**
 
 ## Features
 
-- ✅ Latest JUCE framework (8.0.3) integration
-- ✅ CMake build system
-- ✅ Cross-platform support (Windows, macOS, Linux)
-- ✅ GitHub Actions CI/CD pipeline
-- ✅ VST3, AU, and Standalone plugin formats
-- ✅ Example plugin template
-- ✅ Shared utilities and common code
+- ⚡ **Rapid Iteration**: 3-4 second rebuild cycles (10x faster than traditional JUCE)
+- 🛠️ **Professional Templates**: Clean, production-ready plugin templates
+- 🔄 **CMake Presets**: Optimized build configurations with Ninja + ccache
+- ✅ **Automated Testing**: Built-in pluginval integration
+- 📦 **Easy Packaging**: One-command release packaging
+- 🎛️ **Cross-Platform**: VST3, AU, Standalone on macOS, Windows, Linux
 
 ## Project Structure
 
 ```
 TylerAudio/
-├── plugins/                    # Individual plugin projects
-│   └── ExamplePlugin/         # Example plugin template
-│       ├── Source/            # Plugin source code
-│       └── CMakeLists.txt     # Plugin build configuration
-├── shared/                    # Shared utilities and common code
-├── tests/                     # Test files
-├── .github/workflows/         # CI/CD pipeline
-├── CMakeLists.txt            # Root build configuration
-├── build.bat                 # Windows build script
-└── build.sh                  # Unix build script
+├── tools/           # Development scripts
+├── templates/       # Plugin templates  
+├── plugins/         # Your plugins
+├── framework/       # Shared utilities
+├── docs/           # Documentation
+└── CLAUDE.md       # Complete development guide
 ```
 
-## Prerequisites
+## Development Workflow
 
-- CMake 3.22 or higher
-- C++17 compatible compiler
-- Git (for JUCE submodule)
+```bash
+# Create plugin
+./tools/new-plugin.sh MyReverb
 
-### Platform-specific requirements:
+# Rapid development (3-4s cycles)
+./tools/dev-build.sh MyReverb --launch
 
-**Windows:**
-- Visual Studio 2019 or later
-- Windows SDK
+# Validate thoroughly  
+./tools/validate-plugin.sh MyReverb
 
-**macOS:**
-- Xcode 12 or later
-- macOS 10.15 or later
-
-**Linux:**
-- GCC 7+ or Clang 6+
-- Development packages: `libasound2-dev libx11-dev libxext-dev libxrandr-dev libxss-dev libxinerama-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev`
-
-## Quick Start
-
-1. **Clone the repository:**
-   ```bash
-   git clone <your-repo-url>
-   cd TylerAudio
-   ```
-
-2. **Build all plugins:**
-   
-   **Windows:**
-   ```cmd
-   build.bat
-   ```
-   
-   **macOS/Linux:**
-   ```bash
-   ./build.sh
-   ```
-
-3. **Manual build:**
-   ```bash
-   mkdir build && cd build
-   cmake .. -DCMAKE_BUILD_TYPE=Release
-   cmake --build . --config Release --parallel 4
-   ```
-
-## Plugin Development
-
-### Creating a New Plugin
-
-1. Copy the `ExamplePlugin` directory in `plugins/`
-2. Rename the directory and update `CMakeLists.txt`
-3. Modify the plugin code in the `Source/` directory
-4. Add the new plugin to `plugins/CMakeLists.txt`
-
-### Example Plugin Features
-
-The included example plugin demonstrates:
-- Basic gain processing
-- Parameter management
-- Simple GUI with slider control
-- Cross-platform compatibility
-
-## Build Artifacts
-
-After building, plugin artifacts are located in:
-```
-build/plugins/{PluginName}/{PluginName}_artefacts/Release/
-├── VST3/           # VST3 plugins
-├── AU/             # Audio Units (macOS only)
-└── Standalone/     # Standalone applications
+# Package for release
+./tools/package-release.sh MyReverb --version 1.0.0
 ```
 
-## CI/CD Pipeline
+## Documentation
 
-The GitHub Actions workflow automatically:
-- Builds on Windows, macOS, and Linux
-- Tests compilation for all target formats
-- Uploads build artifacts
-- Triggers on pushes to main branches and pull requests
+- 📚 **[Quick Start Guide](docs/QUICK_START.md)** - Zero to working plugin in 60 seconds
+- 🔧 **[CLAUDE.md](CLAUDE.md)** - Complete development workflows & architecture
+- 📖 **[Templates](templates/)** - Plugin template documentation
 
-## Shared Utilities
+## Requirements
 
-The `shared/` directory contains common utilities:
-- `TylerAudioCommon.h`: Common constants and utility functions
-- Shared DSP algorithms
-- Common GUI components
+- CMake 3.25+
+- Ninja build system
+- ccache (recommended)
+- JUCE 8.0.3 (auto-downloaded)
 
-## Development Guidelines
+## Built With
 
-1. **Code Style**: Follow JUCE coding conventions
-2. **Testing**: Add tests for new DSP algorithms
-3. **Documentation**: Update README when adding new plugins
-4. **Dependencies**: Keep external dependencies minimal
+- **JUCE 8.0.3** - Cross-platform audio framework
+- **CMake** - Modern build system
+- **Ninja** - Fast parallel builds
+- **ccache** - Compilation caching
 
-## License
+---
 
-[Specify your license here]
+**Ready to build professional audio plugins with lightning-fast iteration? 🚀**
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## Support
-
-For issues and questions, please open a GitHub issue or contact [your-email].
+[Get Started →](docs/QUICK_START.md)

@@ -38,6 +38,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     )
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_compile_options(-g3 -O0 -DDEBUG=1)
+        # Relax warnings for rapid development iteration
+        add_compile_options(-Wno-double-promotion -Wno-format-nonliteral)
     elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
         add_compile_options(-O3 -DNDEBUG=1 -flto)
     endif()
@@ -101,5 +103,5 @@ add_subdirectory(plugins)
 
 # Add tests directory
 if(BUILD_TESTS)
-    add_subdirectory(tests)
+    add_subdirectory(framework/TestFramework)
 endif()

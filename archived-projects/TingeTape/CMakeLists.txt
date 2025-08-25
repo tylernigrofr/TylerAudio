@@ -1,9 +1,9 @@
-set(PLUGIN_NAME ExamplePlugin)
+set(PLUGIN_NAME TingeTape)
 
 juce_add_plugin(${PLUGIN_NAME}
     VERSION 1.0.0
     COMPANY_NAME "TylerAudio"
-    BUNDLE_ID "com.tyleraudio.exampleplugin"
+    BUNDLE_ID "com.tyleraudio.tingetape"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
@@ -11,7 +11,7 @@ juce_add_plugin(${PLUGIN_NAME}
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD TRUE
     PLUGIN_MANUFACTURER_CODE Tylr
-    PLUGIN_CODE Expl
+    PLUGIN_CODE TING
     FORMATS AU VST3 Standalone
     PRODUCT_NAME "${PLUGIN_NAME}"
 )
@@ -26,7 +26,7 @@ target_sources(${PLUGIN_NAME}
 
 target_include_directories(${PLUGIN_NAME}
     PRIVATE
-        ../../framework
+        ../../shared
 )
 
 target_compile_definitions(${PLUGIN_NAME}
@@ -57,21 +57,24 @@ if(APPLE)
             $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++20>
             $<$<COMPILE_LANGUAGE:OBJCXX>:-std=gnu++20>
     )
-    # Apply the same fixes to all wrapper targets
-    foreach(target_suffix "_AU" "_VST3" "_Standalone")
-        if(TARGET ${PLUGIN_NAME}${target_suffix})
-            target_compile_options(${PLUGIN_NAME}${target_suffix}
-                PRIVATE
-                    $<$<COMPILE_LANGUAGE:CXX>:-include type_traits>
-                    $<$<COMPILE_LANGUAGE:OBJCXX>:-include type_traits>
-                    $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++20>
-                    $<$<COMPILE_LANGUAGE:OBJCXX>:-std=gnu++20>
-            )
-        endif()
-    endforeach()
+    # Apply the same fixes to the AU wrapper target
+    if(TARGET ${PLUGIN_NAME}_AU)
+        target_compile_options(${PLUGIN_NAME}_AU
+            PRIVATE
+                $<$<COMPILE_LANGUAGE:CXX>:-include type_traits>
+                $<$<COMPILE_LANGUAGE:OBJCXX>:-include type_traits>
+                $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++20>
+                $<$<COMPILE_LANGUAGE:OBJCXX>:-std=gnu++20>
+        )
+    endif()
 endif()
 
 # Add pluginval test if available
 if(BUILD_TESTS AND TARGET pluginval_tests)
     add_pluginval_test(${PLUGIN_NAME})
+endif()
+
+# Add tests subdirectory if building tests
+if(BUILD_TESTS)
+    add_subdirectory(tests)
 endif()

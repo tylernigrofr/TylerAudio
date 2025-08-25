@@ -1,0 +1,182 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 25,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "dev-fast",
+            "displayName": "Development Fast",
+            "description": "Fast development builds with minimal optimization for rapid iteration",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-dev",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "ENABLE_SANITIZERS": "OFF",
+                "BUILD_TESTS": "OFF",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++"
+            },
+            "condition": {
+                "type": "anyOf",
+                "conditions": [
+                    {
+                        "type": "equals",
+                        "lhs": "${hostSystemName}",
+                        "rhs": "Darwin"
+                    },
+                    {
+                        "type": "equals", 
+                        "lhs": "${hostSystemName}",
+                        "rhs": "Linux"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "dev-fast-win",
+            "displayName": "Development Fast (Windows)",
+            "description": "Fast development builds for Windows with MSVC",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-dev",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "ENABLE_SANITIZERS": "OFF",
+                "CMAKE_C_COMPILER_LAUNCHER": "clcache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "clcache"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "debug",
+            "displayName": "Debug",
+            "description": "Full debug build with sanitizers for thorough testing",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "ENABLE_SANITIZERS": "ON",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++"
+            },
+            "condition": {
+                "type": "anyOf",
+                "conditions": [
+                    {
+                        "type": "equals",
+                        "lhs": "${hostSystemName}",
+                        "rhs": "Darwin"
+                    },
+                    {
+                        "type": "equals",
+                        "lhs": "${hostSystemName}",
+                        "rhs": "Linux"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "release",
+            "displayName": "Release",
+            "description": "Optimized release build for distribution",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "ENABLE_SANITIZERS": "OFF",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+            },
+            "environment": {
+                "CC": "clang",
+                "CXX": "clang++"
+            },
+            "condition": {
+                "type": "anyOf",
+                "conditions": [
+                    {
+                        "type": "equals",
+                        "lhs": "${hostSystemName}",
+                        "rhs": "Darwin"
+                    },
+                    {
+                        "type": "equals",
+                        "lhs": "${hostSystemName}",
+                        "rhs": "Linux"
+                    }
+                ]
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "dev-fast",
+            "displayName": "Development Fast Build",
+            "configurePreset": "dev-fast",
+            "jobs": 0,
+            "targets": ["TingeTape_Standalone"]
+        },
+        {
+            "name": "dev-fast-all",
+            "displayName": "Development Fast Build (All Targets)",
+            "configurePreset": "dev-fast",
+            "jobs": 0
+        },
+        {
+            "name": "debug",
+            "displayName": "Debug Build",
+            "configurePreset": "debug",
+            "jobs": 0
+        },
+        {
+            "name": "release",
+            "displayName": "Release Build", 
+            "configurePreset": "release",
+            "jobs": 0
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "dev-fast",
+            "displayName": "Development Fast Tests",
+            "configurePreset": "dev-fast",
+            "execution": {
+                "jobs": 4,
+                "noTestsAction": "error"
+            },
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "debug",
+            "displayName": "Debug Tests",
+            "configurePreset": "debug",
+            "execution": {
+                "jobs": 4,
+                "noTestsAction": "error"
+            },
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}
